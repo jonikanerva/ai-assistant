@@ -80,10 +80,17 @@ The local ephemeral-token endpoint runs as a **separate process**, not as part o
 
 The key lives only in this process — it is never logged and never reaches the
 browser. The endpoint takes no client input (the model is server-fixed) and leaks
-no upstream detail on error (`502 {"error":"token_mint_failed"}`). The
-**browser wiring** that consumes this endpoint (the dev-server `/token` proxy vs
-CORS) lands in **issue #4** — issue #3 ships only the endpoint, proven by direct
-localhost HTTP plus unit tests.
+no upstream detail on error (`502 {"error":"token_mint_failed"}`).
+
+The **browser wiring** that consumes this endpoint was the question issue #3
+deferred to #4. **Decision (issue #4): a same-origin Vite dev-server proxy, not
+CORS.** `vite.config.ts` proxies `/token` → `http://127.0.0.1:8787`, so the page
+POSTs to a same-origin `/token`. We chose this over enabling CORS on the token
+process because it keeps the token server's HTTP surface unchanged (no CORS
+headers, no preflight, no cross-origin credential surface) and the browser code
+needs zero base-URL configuration — the smallest, most additive option
+(CLAUDE.md §2). The endpoint itself stays proven by direct localhost HTTP plus
+unit tests.
 
 ### Approved dependencies
 
@@ -91,8 +98,8 @@ Default is **zero** runtime dependencies beyond these; adding one requires the
 CLAUDE.md dependency rule (can't be delegated to the platform + recorded in the PR).
 
 - **Runtime:** `@openai/agents` (the Agents SDK; `RealtimeSession` via
-  `@openai/agents/realtime`). The token process uses Node built-ins only
-  (`node:http`) — no web framework for ~20 lines.
+  `@openai/agents/realtime`), pinned at `^0.11.7` (added in issue #4). The token
+  process uses Node built-ins only (`node:http`) — no web framework for ~20 lines.
 - **Dev / toolchain:** `typescript`, `@biomejs/biome`, `vitest`, `@types/node`, `vite`.
 
 Anything on the Reject list (our own VAD, audio buffering, tool router, memory/DB,
@@ -297,6 +304,15 @@ implementation, confirm the up-to-date details from OpenAI's documentation:
 
 - The exact realtime-session configuration fields and `turn_detection` settings.
 - Wiring the `web_search` / hosted MCP tool into the realtime session.
+- ✅ The browser RealtimeSession connect API — confirmed (issue #4) against the
+  Agents SDK (`@openai/agents` `^0.11.7`): import `RealtimeAgent` and
+  `RealtimeSession` from the `@openai/agents/realtime` subpath; build
+  `new RealtimeAgent({ name })` + `new RealtimeSession(agent, { model })` and
+  `await session.connect({ apiKey: ek })`; in a browser the SDK auto-selects the
+  **WebRTC** transport (pass none) and auto-configures mic capture + audio
+  playback, and `session.close()` stops the sender tracks so the mic goes inert.
+  `connect()` opens the data channel, sends the initial config, and waits for the
+  `session.updated` ack (with a timeout fallback), so it can take up to ~5s.
 - ✅ The exact form of the ephemeral-token endpoint (client secret flow) —
   confirmed (issue #3): `POST https://api.openai.com/v1/realtime/client_secrets`,
   body `{ session: { type: 'realtime', model } }`, the secret comes back as an
