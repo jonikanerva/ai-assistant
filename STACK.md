@@ -316,7 +316,19 @@ implementation, confirm the up-to-date details from OpenAI's documentation:
   `turnDetection` (Reject list: semantic VAD owns turns — no threshold /
   create_response / interrupt_response). Verified against the types but NOT
   against a live session; naturalness / turn-feel is validated live in #8.
-- Wiring the `web_search` / hosted MCP tool into the realtime session.
+- ✅ Wiring the `web_search` / hosted MCP tool into the realtime session —
+  confirmed (issue #6) against the pinned `@openai/agents` `^0.11.7`: import
+  `webSearchTool` from the `@openai/agents` **root** (re-exported from
+  `@openai/agents-openai`; it is NOT on the `/realtime` subpath) and register it
+  on the agent via `tools: [webSearchTool()]`. It returns a `hosted_tool` named
+  `web_search` and runs **server-side** — OpenAI orchestrates and executes it, so
+  we own no router, no fetch, and no result handling (Reject list). Called with
+  **no options** (defaults; `searchContextSize` / `filters` / `userLocation` are a
+  later additive tuning knob). **No new dependency:** `zod` is a transitive peer of
+  `@openai/agents`, already locked in `pnpm-lock.yaml` — not pinned in
+  `package.json`, on purpose (zero-dep doctrine). Non-interruption of speech is
+  handled by the already-configured semantic VAD, not by us. Verified against the
+  installed types/SDK; the spoken-answer behaviour is validated live in #8.
 - ✅ The browser RealtimeSession connect API — confirmed (issue #4) against the
   Agents SDK (`@openai/agents` `^0.11.7`): import `RealtimeAgent` and
   `RealtimeSession` from the `@openai/agents/realtime` subpath; build
