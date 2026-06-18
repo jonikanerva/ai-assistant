@@ -17,26 +17,26 @@ the laptop browser spike (ephemeral-token process + page + hosted `web_search`).
 ## Requirements
 
 [**mise**](https://mise.jdx.dev) is required for development — it pins the toolchain
-(Node 24 LTS) so everyone runs the same versions.
+(Node 24 LTS + pnpm) so everyone runs the same versions.
 
 ## Setup
 
 ```sh
-mise install        # installs Node 24, then runs `npm install` (postinstall hook)
+mise install        # installs Node 24 + pnpm, then runs `pnpm install` (postinstall hook)
 cp .env.example .env # add your OPENAI_API_KEY — used only by the token process
 ```
 
 ## Verify
 
 ```sh
-npm run verify      # or: mise run verify
+pnpm run verify     # or: mise run verify
 ```
 
 `verify` is the **mandatory and sufficient** quality gate — run it locally before
 every commit/PR. There is no CI; local `verify` is the only gate. It runs:
 **typecheck** (`tsc`) + **lint & format** (`biome ci`) + **tests** (`vitest`).
 
-Convenience: `npm run check:fix` (Biome autofix), `npm run format`. The `dev` /
+Convenience: `pnpm run check:fix` (Biome autofix), `pnpm run format`. The `dev` /
 `build` scripts arrive with the MVP-0 implementation (they depend on the page's
 bundler).
 
