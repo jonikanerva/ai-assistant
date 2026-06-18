@@ -65,6 +65,26 @@ Dev env: `mise install` (installs Node + pnpm, then `pnpm install` via the posti
 page's bundler). Running `verify` **locally** is the mandatory and sufficient quality
 gate — there is no CI.
 
+### The token process (`pnpm run token`)
+
+The local ephemeral-token endpoint runs as a **separate process**, not as part of
+`verify` (which must stay keyless-green and never needs a real key):
+
+| Aspect      | Detail                                                        |
+| ----------- | ------------------------------------------------------------ |
+| Script      | `pnpm run token` → `node --env-file=.env server/token.ts`    |
+| Key source  | `OPENAI_API_KEY` from `.env` (gitignored); fail-fast if unset |
+| Bind        | `127.0.0.1:8787` (localhost only, never `0.0.0.0`)           |
+| Endpoint    | `POST /token` → mints and returns `{ "value": "ek_..." }`    |
+| Code        | `server/token.ts` (I/O shell) + `server/mintToken.ts` (pure) |
+
+The key lives only in this process — it is never logged and never reaches the
+browser. The endpoint takes no client input (the model is server-fixed) and leaks
+no upstream detail on error (`502 {"error":"token_mint_failed"}`). The
+**browser wiring** that consumes this endpoint (the dev-server `/token` proxy vs
+CORS) lands in **issue #4** — issue #3 ships only the endpoint, proven by direct
+localhost HTTP plus unit tests.
+
 ### Approved dependencies
 
 Default is **zero** runtime dependencies beyond these; adding one requires the
@@ -277,7 +297,13 @@ implementation, confirm the up-to-date details from OpenAI's documentation:
 
 - The exact realtime-session configuration fields and `turn_detection` settings.
 - Wiring the `web_search` / hosted MCP tool into the realtime session.
-- The exact form of the ephemeral-token endpoint (client secret flow).
+- ✅ The exact form of the ephemeral-token endpoint (client secret flow) —
+  confirmed (issue #3): `POST https://api.openai.com/v1/realtime/client_secrets`,
+  body `{ session: { type: 'realtime', model } }`, the secret comes back as an
+  `ek_...` string. The exact field path was **not** live-verified, so the minter
+  reads it defensively from either a top-level `value` or a nested
+  `client_secret.value` (`server/mintToken.ts`); re-pin to the real shape once a
+  live response is captured.
 - GPT-Realtime-2's reasoning-effort parameter.
 
 ## Sources
