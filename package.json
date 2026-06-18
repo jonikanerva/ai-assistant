@@ -16,6 +16,7 @@
     "check": "biome check .",
     "check:fix": "biome check --write .",
     "test": "vitest run --passWithNoTests",
+    "token": "node --env-file=.env server/token.ts",
     "verify": "pnpm run typecheck && biome ci . && pnpm run test"
   },
   "devDependencies": {
