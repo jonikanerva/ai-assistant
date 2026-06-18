@@ -15,7 +15,7 @@
 export type EphemeralToken = { value: string };
 
 /** Result of a mint attempt. Failure carries only a coarse HTTP status. */
-export type MintResult = { ok: true; token: EphemeralToken } | { ok: false; status: 502 | 500 };
+export type MintResult = { ok: true; token: EphemeralToken } | { ok: false; status: 502 };
 
 type FetchImpl = typeof fetch;
 
