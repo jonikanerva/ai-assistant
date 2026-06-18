@@ -302,7 +302,20 @@ In priority order, validated in MVP-0:
 This architecture was designed with information available in June 2026. Before
 implementation, confirm the up-to-date details from OpenAI's documentation:
 
-- The exact realtime-session configuration fields and `turn_detection` settings.
+- ✅ The exact realtime-session configuration fields and `turn_detection`
+  settings — confirmed (issue #5) against the pinned `@openai/agents` `^0.11.7`
+  types (`@openai/agents-realtime@0.11.7`) + OpenAI's semantic-VAD docs. The
+  config is declarative on the `RealtimeSession` constructor
+  (`new RealtimeSession(agent, { model, config })`, sent once on connect — no
+  `session.update`): `config.audio.input.turnDetection = { type: 'semantic_vad', eagerness }`
+  and `config.audio.output.voice`; the system prompt rides on the agent
+  (`new RealtimeAgent({ name, instructions })`). **Spoken language is controlled
+  by `instructions`, not by the voice.** Voice = `marin` (OpenAI's newest
+  recommended voice; `cedar` is the #8 A/B alternative); turn-taking
+  `eagerness = 'auto'` is the #8 tuning knob. We set ONLY `type` + `eagerness` on
+  `turnDetection` (Reject list: semantic VAD owns turns — no threshold /
+  create_response / interrupt_response). Verified against the types but NOT
+  against a live session; naturalness / turn-feel is validated live in #8.
 - Wiring the `web_search` / hosted MCP tool into the realtime session.
 - ✅ The browser RealtimeSession connect API — confirmed (issue #4) against the
   Agents SDK (`@openai/agents` `^0.11.7`): import `RealtimeAgent` and
