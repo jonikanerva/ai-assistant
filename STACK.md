@@ -45,7 +45,7 @@ in the model.
 | Package manager     | pnpm                                              | stack      |
 | Lint + format       | Biome (one tool; `biome ci` inside verify)        | stack      |
 | Test runner         | Vitest                                            | stack      |
-| Bundler / dev server| Decided in MVP-0 (likely Vite for the static page)| stack      |
+| Bundler / dev server| Vite (static page build + dev server)             | stack      |
 
 > Language, runtime version, and `strict` are **user-owned** and changed only by the
 > user. Everything else in this section is stack-owned.
@@ -73,7 +73,7 @@ CLAUDE.md dependency rule (can't be delegated to the platform + recorded in the 
 - **Runtime:** `@openai/agents` (the Agents SDK; `RealtimeSession` via
   `@openai/agents/realtime`). The token process uses Node built-ins only
   (`node:http`) — no web framework for ~20 lines.
-- **Dev / toolchain:** `typescript`, `@biomejs/biome`, `vitest`, `@types/node`.
+- **Dev / toolchain:** `typescript`, `@biomejs/biome`, `vitest`, `@types/node`, `vite`.
 
 Anything on the Reject list (our own VAD, audio buffering, tool router, memory/DB,
 custom TTS) is **not** an approved dependency. See the Reject list below.
