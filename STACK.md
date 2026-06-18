@@ -43,7 +43,7 @@ in the model.
 | Runtime             | Node 24 LTS                                        | user-owned |
 | Toolchain manager   | mise (`mise install` provisions the dev env)      | stack      |
 | Package manager     | npm                                               | stack      |
-| Lint + format       | Biome (one tool; `biome ci` in verify and CI)     | stack      |
+| Lint + format       | Biome (one tool; `biome ci` inside verify)        | stack      |
 | Test runner         | Vitest                                            | stack      |
 | Bundler / dev server| Decided in MVP-0 (likely Vite for the static page)| stack      |
 
@@ -62,7 +62,8 @@ in the model.
 
 Dev env: `mise install` (installs Node, then `npm install` via the postinstall hook).
 `dev` / `build` scripts arrive with the MVP-0 implementation (they depend on the
-page's bundler). CI runs `verify` on every PR (`.github/workflows/ci.yml`).
+page's bundler). Running `verify` **locally** is the mandatory and sufficient quality
+gate — there is no CI.
 
 ### Approved dependencies
 

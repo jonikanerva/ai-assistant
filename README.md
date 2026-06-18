@@ -32,9 +32,9 @@ cp .env.example .env # add your OPENAI_API_KEY — used only by the token proces
 npm run verify      # or: mise run verify
 ```
 
-`verify` is the gate every PR must pass: **typecheck** (`tsc`) + **lint & format**
-(`biome ci`) + **tests** (`vitest`). CI runs the same on every PR
-(`.github/workflows/ci.yml`).
+`verify` is the **mandatory and sufficient** quality gate — run it locally before
+every commit/PR. There is no CI; local `verify` is the only gate. It runs:
+**typecheck** (`tsc`) + **lint & format** (`biome ci`) + **tests** (`vitest`).
 
 Convenience: `npm run check:fix` (Biome autofix), `npm run format`. The `dev` /
 `build` scripts arrive with the MVP-0 implementation (they depend on the page's
@@ -49,7 +49,6 @@ bundler).
 | `CLAUDE.md`               | Engineering doctrine — how we work                    |
 | `mise.toml`               | Dev toolchain (Node) + one-command setup             |
 | `biome.json` `tsconfig.json` `vitest.config.ts` | Lint/format, types, tests      |
-| `.github/workflows/ci.yml`| Runs `verify` on every PR                            |
 
 ## How work happens
 
