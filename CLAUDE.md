@@ -40,7 +40,7 @@ issue, VISION.md, STACK.md, or this file:
 A change is done only when **all** hold:
 
 - It satisfies the issue's acceptance criteria (or the agreed scope).
-- `$VERIFY_CMD` (`npm run verify`, see STACK.md) passes **locally** and is green.
+- `$VERIFY_CMD` (`pnpm run verify`, see STACK.md) passes **locally** and is green.
   Running it locally is the **mandatory and sufficient** quality gate — there is no CI.
 - New behaviour has a test (Vitest), unless it is pure config/docs.
 - No new dependency outside STACK.md's **Approved dependencies** (see §5).
@@ -69,7 +69,7 @@ A change is done only when **all** hold:
 - A new runtime dependency requires **all** of: it can't be delegated to the
   platform, it is on (or added to) STACK.md's Approved dependencies, and the PR
   explains why.
-- Dev tooling (Node, TypeScript, Biome, Vitest) is fixed by STACK.md — don't swap it
+- Dev tooling (Node, pnpm, TypeScript, Biome, Vitest) is fixed by STACK.md — don't swap it
   casually. Node version and TS strictness are **user-owned** (do not change them).
 
 ## 6. Code quality

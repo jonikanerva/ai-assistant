@@ -14,7 +14,7 @@
     "check": "biome check .",
     "check:fix": "biome check --write .",
     "test": "vitest run --passWithNoTests",
-    "verify": "npm run typecheck && biome ci . && npm run test"
+    "verify": "pnpm run typecheck && biome ci . && pnpm run test"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.0",

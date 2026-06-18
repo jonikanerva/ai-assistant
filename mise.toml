@@ -3,21 +3,22 @@
 #
 #   mise install
 #
-#   1. installs the pinned Node version below
-#   2. the postinstall hook then runs `npm install` for project dependencies
+#   1. installs the pinned Node + pnpm versions below
+#   2. the postinstall hook then runs `pnpm install` for project dependencies
 min_version = "2024.9.5"
 
 [tools]
 node = "24"
+pnpm = "11"
 
 [env]
 # project-local binaries (biome, vitest, tsc) on PATH inside the mise env
 _.path = ['{{config_root}}/node_modules/.bin']
 
 [hooks]
-# `mise install` installs Node, then pulls npm dependencies — one-command setup
-postinstall = "npm install"
+# `mise install` installs Node + pnpm, then pulls dependencies — one-command setup
+postinstall = "pnpm install"
 
 [tasks.verify]
 description = "The gate every PR must pass: typecheck + biome ci + tests"
-run = "npm run verify"
+run = "pnpm run verify"
