@@ -119,7 +119,7 @@ memory, if ever needed, is a hosted memory MCP — never our own DB.
 | ----------------------- | --------------------------------------------------- |
 | Spoken response latency | sub-second to first audio (network not the limit)   |
 | Token-mint endpoint     | < 200 ms locally                                    |
-| Idle timeout            | closes the session to cap audio-minute cost         |
+| Idle timeout            | inactivity window (resets on activity) caps audio-minute cost |
 | Barge-in                | handled by the platform (semantic VAD), not by us   |
 
 These are validation targets for MVP-0 (see Risks & validation).
@@ -199,6 +199,38 @@ MacBook (normal browser, manual start)
 4. Continuous conversation: semantic VAD handles turns, barge-in allowed;
    `web_search` runs remotely and does not interrupt speech.
 5. Button again or idle timeout → `close()` → back to idle.
+
+### Idle timeout (issue #7)
+
+The idle timeout is the main **audio-minute cost control** (Risks #4) and a
+privacy aid (mic inert sooner). Its design — adjudicated by architect +
+devils-advocate — is an **inactivity window, NOT a session-length cap**:
+
+- **What it is.** A timer (`IDLE_TIMEOUT_MS`, default `90_000`) armed on entry to
+  `live` and **reset on every assistant-activity event**. After the window
+  elapses with no activity, the session auto-closes back to `idle` (it reopens on
+  the next Talk). It reuses the exact same teardown as the manual toggle-off
+  (a single `closeLive()` path — `session.close()` + unsubscribe + `→ idle`), so
+  there is one teardown, not two.
+- **Why a reset window, not a fixed cap.** A fixed "time since live" cap would cut
+  the user off mid-conversation and make #8's "real conversations" unrunnable.
+  Resetting on activity keeps long natural conversations alive while still
+  closing a genuinely idle session.
+- **Activity = first-class assistant events only.** We reset on the typed
+  `session.on(...)` events `agent_start`, `audio_stopped`, `history_added`. We do
+  **not** subscribe to the raw `transport_event` firehose, and we do **not** track
+  user speech (`input_audio_buffer.speech_started`) — that is Reject-list-adjacent
+  VAD territory the platform owns. Resetting on **Bob's** response activity is the
+  MVP-0 approximation; **true user-silence VAD is deferred to #8**.
+- **Concurrency guarantee.** `clearIdleTimer()` is funnelled through `setStatus()`,
+  so the timer is killed on **every** exit from `live`; it is armed **only**
+  immediately after the successful `setStatus({ phase: 'live' })` — never on a
+  non-`live` path (including the cancelled-connect latch). The fire callback
+  re-checks `phase === 'live' && session !== null`, so a fired-but-not-yet-run
+  timeout that races a manual close is a harmless no-op (no double close).
+- **#8 tuning / deferral knobs.** Both the **value** (`IDLE_TIMEOUT_MS` — no
+  cost-math behind `90_000` yet) and the **user-silence VAD** (resetting on user
+  speech, not just Bob activity) are tuned/added in #8. Not a session-length cap.
 
 ## Runtime decision: C2 (browser) vs C1 (Node daemon)
 

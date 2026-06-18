@@ -44,15 +44,32 @@ export async function fetchEphemeralToken(fetchImpl: typeof fetch = fetch): Prom
 }
 
 /**
+ * The first-class session events we reset the idle timer on. These are Bob's
+ * own response activity — the agent starting a turn (`agent_start`), finishing
+ * speaking (`audio_stopped`), and a conversation item landing in the history
+ * (`history_added`). We deliberately do NOT subscribe to the raw
+ * `transport_event` firehose, and we do NOT track user-speech
+ * (`input_audio_buffer.speech_started`): that is VAD territory the platform owns
+ * (STACK.md Reject list — "our own VAD / turn detection"). Resetting on Bob's
+ * activity is the MVP-0 approximation; true user-silence VAD is deferred to #8.
+ */
+export type SessionActivityEvent = 'agent_start' | 'audio_stopped' | 'history_added';
+
+/**
  * The minimal slice of the SDK's RealtimeSession the controller actually calls.
  * Deliberately NOT a broad transport/config interface — the controller only
- * connects and closes, so it only depends on those two methods (CLAUDE.md §6:
- * no premature abstraction). `createRealtimeSession()` returns a value that
- * satisfies this structurally.
+ * connects, closes, and subscribes to the three activity events above, so it
+ * only depends on those members (CLAUDE.md §6: no premature abstraction). The
+ * `on`/`off` shape is the structural subset of the SDK's event emitter we use:
+ * a zero-arg listener is assignable wherever the SDK's typed listener is
+ * expected, so the real `RealtimeSession` satisfies this. `createRealtimeSession()`
+ * returns a value that satisfies this structurally.
  */
 export type ControllableSession = {
   connect(opts: { apiKey: string }): Promise<void>;
   close(): void;
+  on(event: SessionActivityEvent, listener: () => void): unknown;
+  off(event: SessionActivityEvent, listener: () => void): unknown;
 };
 
 /**
@@ -95,6 +112,27 @@ function isMicPermissionDenied(error: unknown): boolean {
 }
 
 /**
+ * Inactivity window: how long the session may sit `live` with no assistant
+ * activity before it auto-closes. It RESETS on every Bob-activity event
+ * (`agent_start` / `audio_stopped` / `history_added`) — it is NOT a session-length
+ * cap, so it never cuts the user off mid-conversation (a fixed cap would, and
+ * would make #8's "real conversations" unrunnable). This is the main
+ * audio-minute cost control (STACK.md performance budgets / Risks #4). The value
+ * is a #8 tuning knob with no cost-math behind it yet.
+ *
+ * Exported so the tests assert against the single source of truth rather than a
+ * duplicated literal — the timeout value is behaviour, and #8 will retune it.
+ */
+export const IDLE_TIMEOUT_MS = 90_000;
+
+/** The activity events the idle timer subscribes to and resets on. */
+const ACTIVITY_EVENTS: readonly SessionActivityEvent[] = [
+  'agent_start',
+  'audio_stopped',
+  'history_added',
+];
+
+/**
  * Drive the Talk toggle's lifecycle.
  *
  * Transitions:
@@ -113,6 +151,16 @@ function isMicPermissionDenied(error: unknown): boolean {
  * Failure paths never strand the UI in `connecting`: a token-fetch rejection or
  * a connect rejection drops back to `error: connection-failed`; a mic-permission
  * denial drops to the distinct `error: mic-denied`.
+ *
+ * Idle timeout (issue #7): while `live`, an inactivity timer (`IDLE_TIMEOUT_MS`)
+ * auto-closes the session — the main audio-minute cost control — reusing the same
+ * teardown the manual toggle does (`closeLive()`). The timer is RESET on every
+ * Bob-activity event, so it is an inactivity window, not a session-length cap.
+ * The timer is killed on EVERY exit from `live` because `setStatus()` clears it
+ * up front, and it is armed ONLY on the successful entry into `live`; no timer is
+ * ever armed on a non-`live` path (including the cancelled-connect latch). The
+ * fire callback re-checks it is still `live` so a fired-but-not-yet-run timeout
+ * that races a manual close is harmless.
  */
 export function createSessionController({
   createSession,
@@ -125,11 +173,73 @@ export function createSessionController({
   let session: ControllableSession | null = null;
   // Set when toggle() fires during `connecting`: tear down as soon as connect settles.
   let teardownRequested = false;
+  // The live inactivity timer, if armed. Cleared on every status transition.
+  let idleTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function clearIdleTimer(): void {
+    if (idleTimer !== null) {
+      clearTimeout(idleTimer);
+      idleTimer = null;
+    }
+  }
 
   function setStatus(next: SessionStatus): void {
+    // Every exit from `live` runs through here, so clearing up front guarantees
+    // the timer is killed on every transition; it is re-armed only after a
+    // successful entry into `live` (and nowhere else).
+    clearIdleTimer();
     status = next;
     for (const listener of listeners) {
       listener(status);
+    }
+  }
+
+  function armIdleTimer(): void {
+    clearIdleTimer();
+    idleTimer = setTimeout(onIdleFire, IDLE_TIMEOUT_MS);
+  }
+
+  // Each activity listener resets the inactivity window. One reused reference per
+  // event so we can `off()` exactly what we registered — no leaked listeners.
+  const resetIdleTimer = (): void => {
+    armIdleTimer();
+  };
+
+  function subscribeActivity(target: ControllableSession): void {
+    for (const event of ACTIVITY_EVENTS) {
+      target.on(event, resetIdleTimer);
+    }
+  }
+
+  function unsubscribeActivity(target: ControllableSession): void {
+    for (const event of ACTIVITY_EVENTS) {
+      target.off(event, resetIdleTimer);
+    }
+  }
+
+  /**
+   * The single teardown for a `live` session, reused by BOTH the manual
+   * toggle-off and the idle auto-close: stop the SDK session (mic goes inert),
+   * remove the activity listeners, drop the reference, and return to `idle`.
+   * `setStatus({ phase: 'idle' })` also clears the idle timer.
+   */
+  function closeLive(): void {
+    session?.close();
+    if (session !== null) {
+      unsubscribeActivity(session);
+    }
+    session = null;
+    setStatus({ phase: 'idle' });
+  }
+
+  /**
+   * Idle timeout fired. Guard that we are still `live` with a session before
+   * tearing down: a timeout that fired but had not yet run when a manual close
+   * (or any other transition) happened must be a no-op, never a double close.
+   */
+  function onIdleFire(): void {
+    if (status.phase === 'live' && session !== null) {
+      closeLive();
     }
   }
 
@@ -170,7 +280,12 @@ export function createSessionController({
       setStatus({ phase: 'idle' });
       return;
     }
+    // Enter `live`: subscribe to Bob-activity events, then arm the inactivity
+    // timer. Arming happens ONLY here, after the successful `setStatus(live)`
+    // (which itself cleared any prior timer) — never on a non-`live` path.
     setStatus({ phase: 'live' });
+    subscribeActivity(pending);
+    armIdleTimer();
   }
 
   function toggle(): void {
@@ -184,9 +299,7 @@ export function createSessionController({
         teardownRequested = true;
         return;
       case 'live':
-        session?.close();
-        session = null;
-        setStatus({ phase: 'idle' });
+        closeLive();
         return;
     }
   }
