@@ -13,7 +13,7 @@
 // with no logic of our own, so it is not unit-tested (sessionConfig.ts is).
 
 import { RealtimeAgent, RealtimeSession } from '@openai/agents/realtime';
-import { BOB_INSTRUCTIONS, buildSessionConfig } from './sessionConfig';
+import { BOB_INSTRUCTIONS, buildSessionConfig } from './sessionConfig.ts';
 
 const MODEL = 'gpt-realtime-2';
 
