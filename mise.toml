@@ -1,0 +1,23 @@
+# Dev environment for Bob — managed by mise (https://mise.jdx.dev).
+# mise is REQUIRED for development. One command sets everything up:
+#
+#   mise install
+#
+#   1. installs the pinned Node version below
+#   2. the postinstall hook then runs `npm install` for project dependencies
+min_version = "2024.9.5"
+
+[tools]
+node = "24"
+
+[env]
+# project-local binaries (biome, vitest, tsc) on PATH inside the mise env
+_.path = ['{{config_root}}/node_modules/.bin']
+
+[hooks]
+# `mise install` installs Node, then pulls npm dependencies — one-command setup
+postinstall = "npm install"
+
+[tasks.verify]
+description = "The gate every PR must pass: typecheck + biome ci + tests"
+run = "npm run verify"
