@@ -1,0 +1,16 @@
+node_modules/
+dist/
+build/
+coverage/
+
+# secrets — the OpenAI API key lives here, never in the repo (see STACK.md)
+.env
+.env.local
+.env.*.local
+
+# logs / os
+*.log
+.DS_Store
+
+# mise local overrides
+mise.local.toml

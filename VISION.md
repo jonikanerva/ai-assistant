@@ -32,7 +32,8 @@ A personal home and desk device (single user). Typical situations:
 - **Quick lookups** — fresh information from the web without opening a device.
 - **Calculation and reasoning** — interest, conversions, "which is better"
   comparisons.
-- **Later** — calendar, reminders, home devices (as tools; see roadmap).
+- **Later** — calendar, reminders, home devices (as tools; see the phasing in
+  STACK.md and the GitHub Milestones).
 
 ## What "good" means (experience goals)
 

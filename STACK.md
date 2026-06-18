@@ -35,6 +35,67 @@ in the model.
 | Math                  | Model reasoning effort (no custom calculator)               |
 | Turn-taking           | OpenAI semantic VAD (not our own)                           |
 
+## Engineering baseline
+
+| Area                | Choice                                            | Owner      |
+| ------------------- | ------------------------------------------------- | ---------- |
+| Language            | TypeScript, `strict` mode                         | user-owned |
+| Runtime             | Node 24 LTS                                        | user-owned |
+| Toolchain manager   | mise (`mise install` provisions the dev env)      | stack      |
+| Package manager     | npm                                               | stack      |
+| Lint + format       | Biome (one tool; `biome ci` in verify and CI)     | stack      |
+| Test runner         | Vitest                                            | stack      |
+| Bundler / dev server| Decided in MVP-0 (likely Vite for the static page)| stack      |
+
+> Language, runtime version, and `strict` are **user-owned** and changed only by the
+> user. Everything else in this section is stack-owned.
+
+### Build & verify commands
+
+`$VERIFY_CMD = npm run verify` — the single gate every PR (and CI) must pass:
+
+| Step      | Command                          | Purpose                       |
+| --------- | -------------------------------- | ----------------------------- |
+| Typecheck | `tsc --noEmit`                   | TS strict, no type errors     |
+| Lint+fmt  | `biome ci .`                     | format + lint + import order  |
+| Test      | `vitest run --passWithNoTests`   | unit tests (Vitest)           |
+
+Dev env: `mise install` (installs Node, then `npm install` via the postinstall hook).
+`dev` / `build` scripts arrive with the MVP-0 implementation (they depend on the
+page's bundler). CI runs `verify` on every PR (`.github/workflows/ci.yml`).
+
+### Approved dependencies
+
+Default is **zero** runtime dependencies beyond these; adding one requires the
+CLAUDE.md dependency rule (can't be delegated to the platform + recorded in the PR).
+
+- **Runtime:** `@openai/agents` (the Agents SDK; `RealtimeSession` via
+  `@openai/agents/realtime`). The token process uses Node built-ins only
+  (`node:http`) — no web framework for ~20 lines.
+- **Dev / toolchain:** `typescript`, `@biomejs/biome`, `vitest`, `@types/node`.
+
+Anything on the Reject list (our own VAD, audio buffering, tool router, memory/DB,
+custom TTS) is **not** an approved dependency. See the Reject list below.
+
+### Persistence shape
+
+**None.** MVP-0 is stateless: no database, no on-disk conversation store. Session
+state lives inside the OpenAI Realtime session and is gone when it closes (VISION.md
+non-goal: not our own conversation-memory or database layer). The only local secret
+is `OPENAI_API_KEY` in `.env` (gitignored), read by the token process. Cross-session
+memory, if ever needed, is a hosted memory MCP — never our own DB.
+
+### Performance budgets
+
+| Budget                  | Target                                              |
+| ----------------------- | --------------------------------------------------- |
+| Spoken response latency | sub-second to first audio (network not the limit)   |
+| Token-mint endpoint     | < 200 ms locally                                    |
+| Idle timeout            | closes the session to cap audio-minute cost         |
+| Barge-in                | handled by the platform (semantic VAD), not by us   |
+
+These are validation targets for MVP-0 (see Risks & validation).
+
 ## Thin-client principle and the "thin waist"
 
 The heart of the design: minimize our own logic, maximize what OpenAI handles.
@@ -142,17 +203,23 @@ In practice the whole implementation is **one Node file + one page.**
 > required way to open a browser WebRTC connection — the browser connects with a
 > short-lived token, not the raw API key.
 
-## Roadmap (phases)
+## Phasing principle
 
-| Phase     | Contents                                                                                                            |
-| --------- | ------------------------------------------------------------------------------------------------------------------- |
-| **MVP-0** | Laptop spike: browser + MacBook mic/speaker + web*search. \_Validates the core experience.*                         |
-| **MVP-1** | Physical "talk" button (USB keypress; or Jabra HID if C1).                                                          |
-| **MVP-2** | Jabra Speak + kiosk Chromium on the home box + always-on + wake word "Hei Bob".                                     |
-| Later     | "Thinking" delegation to gpt-5.4 as a tool · cross-session memory (hosted memory MCP) · home automation (as a tool) |
+> The **backlog and roadmap live in GitHub Issues + Milestones**, not in this repo
+> (CLAUDE.md → Git workflow). Milestones = phases; issues = the work, labelled by
+> phase and area. What belongs *here* is only the sequencing rule — that's
+> architecture, not backlog:
 
-Every phase is **additive** — e.g. the wake word is a module that calls the same
-`connect()`, touching nothing else.
+1. **MVP-0** validates the core risk first — natural Finnish + free conversation +
+   `web_search` — as a laptop browser spike, before any hardware.
+2. **MVP-1** adds a physical "talk" button (USB keypress; or Jabra HID if C1).
+3. **MVP-2** adds the home box: Jabra Speak + kiosk Chromium + always-on + wake
+   word "Hei Bob".
+4. **Later** — reasoning delegation, hosted cross-session memory, home automation —
+   all *as tools*, never as our own subsystems.
+
+Every phase is **additive**: a new capability attaches to the same `connect()` and
+touches nothing else. Validate the risk before adding hardware or "always on."
 
 ## Scope-out (and why)
 
