@@ -40,7 +40,8 @@ issue, VISION.md, STACK.md, or this file:
 A change is done only when **all** hold:
 
 - It satisfies the issue's acceptance criteria (or the agreed scope).
-- `$VERIFY_CMD` (`npm run verify`, see STACK.md) passes locally and is green.
+- `$VERIFY_CMD` (`npm run verify`, see STACK.md) passes **locally** and is green.
+  Running it locally is the **mandatory and sufficient** quality gate — there is no CI.
 - New behaviour has a test (Vitest), unless it is pure config/docs.
 - No new dependency outside STACK.md's **Approved dependencies** (see §5).
 - No **Reject list** pattern introduced (STACK.md → "Reject list").
